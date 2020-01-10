@@ -1,0 +1,202 @@
+Don't use getpass (), it is difficult to interrupt
+
+2010-10-08  Miloslav Trmač  <mitr@redhat.com>
+
+	* src/volume_key.c (get_password): New function.
+	(nss_password_fn, generic_ui_cb, passphrase_ui_cb): Use get_password ()
+	instead of getpass ().
+
+Tell the user when a non-NSS passphrase is incorrect.
+
+2010-10-18  Miloslav Trmač  <mitr@redhat.com>
+
+	* src/volume_key.c (passphrase_ui_cb): Tell the user when a non-NSS
+	passphrase is incorrect.
+
+Only tell the user about an incorrect passphrase once.
+
+2010-10-18  Miloslav Trmač  <mitr@redhat.com>
+
+	* lib/volume_luks.c (luks_apply_secret)
+	* src/volume_key.c (pos_interact): Only tell the user about an incorrect
+	passphrase once.
+
+diff -urN volume_key/lib/volume_luks.c volume_key-0.3.1/lib/volume_luks.c
+--- volume_key/lib/volume_luks.c	2009-09-30 15:58:13.000000000 +0200
++++ volume_key-0.3.1/lib/volume_luks.c	2011-01-14 23:42:07.328135699 +0100
+@@ -482,7 +482,9 @@
+ 				      failed, error);
+       if (passphrase == NULL)
+ 	goto err_prompts;
+-      passphrase2 = ui_get_passphrase (ui, prompt2, failed, error);
++      /* The repeated passphrase is always considered a first attempt -
++	 otherwise src/volume_key.c would prepend "Error, try again". */
++      passphrase2 = ui_get_passphrase (ui, prompt2, 0, error);
+       if (passphrase2 == NULL)
+ 	goto err_passphrase;
+       passphrase_ok = strcmp (passphrase, passphrase2) == 0;
+diff -urN volume_key/src/volume_key.c volume_key-0.3.1/src/volume_key.c
+--- volume_key/src/volume_key.c	2011-01-14 23:30:24.481840042 +0100
++++ volume_key-0.3.1/src/volume_key.c	2011-01-14 23:42:07.328135699 +0100
+@@ -24,6 +24,7 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include <sys/stat.h>
++#include <termios.h>
+ #include <unistd.h>
+ 
+ #include <glib.h>
+@@ -383,36 +384,93 @@
+   return res;
+ }
+ 
++/* Read a password (from /dev/tty if possible).
++   Return a password for g_free (), or NULL on error.
++   Unlike getpass(), does not block SIGINT and other signals.  (We rely on the
++   shell to re-enable ECHO on SIGINT.) */
++static char *
++get_password (const char *prompt)
++{
++  FILE *tty, *in_file, *out_file;
++  char buf[LINE_MAX], *p;
++  struct termios otermios;
++  gboolean echo_disabled;
++
++  tty = fopen ("/dev/tty", "r+");
++  if (tty != NULL)
++    {
++      in_file = tty;
++      out_file = tty;
++    }
++  else
++    {
++      in_file = stdin;
++      out_file = stderr;
++    }
++
++  fputs (prompt, out_file);
++  fflush (out_file);
++
++  if (tcgetattr (fileno (in_file), &otermios) != 0)
++    echo_disabled = FALSE;
++  else
++    {
++      struct termios ntermios;
++
++      ntermios = otermios;
++      ntermios.c_lflag &= ~ECHO;
++      echo_disabled = tcsetattr (fileno (in_file), TCSAFLUSH, &ntermios) == 0;
++    }
++
++  p = fgets(buf, sizeof(buf), in_file);
++
++  if (echo_disabled)
++    {
++      (void)tcsetattr (fileno (in_file), TCSAFLUSH, &otermios);
++      putc ('\n', out_file);
++    }
++
++  if (tty != NULL)
++    fclose (tty);
++
++  if (p == NULL)
++    return NULL;
++
++  p = strchr(buf, '\r');
++  if (p != NULL)
++    *p = '\0';
++  p = strchr(buf, '\n');
++  if (p != NULL)
++    *p = '\0';
++
++  return g_strdup (buf);
++}
++
+ /* A PK11_SetPaswordFunc handler */
+ static char *
+ nss_password_fn (PK11SlotInfo *slot, PRBool retry, void *arg)
+ {
++  char *s, *res;
++
++  (void)arg;
+   if (batch_mode == 0)
+     {
+-      char *prompt, *s;
++      char *prompt;
+ 
+-      (void)arg;
+       if (retry)
+ 	fprintf (stderr, _("Error, try again.\n"));
+       prompt = g_strdup_printf (_("Enter password for `%s': "),
+ 				PK11_GetTokenName (slot));
+-      s = getpass (prompt);
++      s = get_password (prompt);
+       g_free (prompt);
+-      if (s == NULL)
+-	return NULL;
+-      return PL_strdup (s);
+     }
+   else
+-    {
+-      char *s, *res;
+-
+-      s = read_batch_string ();
+-      if (s == NULL)
+-	return NULL;
+-      res = PL_strdup (s);
+-      g_free (s);
+-      return res;
+-    }
++    s = read_batch_string ();
++  if (s == NULL)
++    return NULL;
++  res = PL_strdup (s);
++  g_free (s);
++  return res;
+ }
+ 
+ /* A "generic" struct libvk_ui callback. */
+@@ -427,10 +485,11 @@
+       char *s, *res;
+ 
+       s = g_strdup_printf (_("%s: "), prompt);
+-      res = getpass (s);
++      res = get_password (s);
+       g_free (s);
+       if (res != NULL && res[0] != '\0')
+-	return g_strdup (res);
++	return res;
++      g_free (res);
+       return NULL;
+     }
+   else
+@@ -478,11 +537,14 @@
+ 	return NULL;
+       return read_batch_string ();
+     }
++  if (failed_attempts != 0)
++    fprintf (stderr, _("Error, try again.\n"));
+   s = g_strdup_printf (_("%s: "), prompt);
+-  res = getpass (s);
++  res = get_password (s);
+   g_free (s);
+   if (res != NULL && res[0] != '\0')
+-    return g_strdup (res);
++    return res;
++  g_free (res);
+   return NULL;
+ }
+ 
+@@ -582,9 +644,10 @@
+ 					     "New packet passphrase"), failed);
+ 	  if (passphrase == NULL)
+ 	    goto no_passphrase;
++	  /* The repeated passphrase is always considered a first attempt -
++	     otherwise passphrase_ui_cb would prepend "Error, try again". */
+ 	  passphrase2 = passphrase_ui_cb (NULL,
+-					  _("Repeat new packet passphrase"),
+-					  failed);
++					  _("Repeat new packet passphrase"), 0);
+ 	  if (passphrase2 == NULL)
+ 	    {
+ 	      memset (passphrase, 0, strlen (passphrase));

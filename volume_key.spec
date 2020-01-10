@@ -3,7 +3,7 @@
 Summary: An utility for manipulating storage encryption keys and passphrases
 Name: volume_key
 Version: 0.3.1
-Release: 3%{?dist}
+Release: 5%{?dist}
 License: GPLv2
 Group: Applications/System
 URL: https://fedorahosted.org/volume_key/
@@ -14,6 +14,16 @@ Source0: https://fedorahosted.org/releases/v/o/volume_key/volume_key-%{version}.
 Patch0: volume_key-0.3.1-empty-passphrase.patch
 # Merged upstream
 Patch1: volume_key-0.3.1-l10n-update.patch
+# Upstream commit 3486c1c8112bd625bfe6bde55c337c4edbd75277
+Patch2: volume_key-0.3.1-man-device.patch
+# Upstream commit a2ab2a3546f3ee5937bb4272f4f26650f31f42bb
+Patch3: volume_key-0.3.1-sslerrs.patch
+# Upstream commits 82f476f614ff8492231e730b6ceffaa7242481cc,
+# b66602b8ef4e6ef8325c0b97fce821e183a2ae84 and
+# 1dcafdcd6f3097487b92f86e9db3e5412c266ee5
+Patch4: volume_key-0.3.1-passphrase-dialogs.patch
+# Upstream commit 40e5330c076f9f4e149c2091900602d3de41b119
+Patch5: volume_key-0.3.1-check-cert-first.patch
 BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 BuildRequires: cryptsetup-luks-devel, gettext-devel, glib2-devel, gnupg
 BuildRequires: gpgme-devel, libblkid-devel, nss-devel, python-devel
@@ -80,6 +90,10 @@ for other formats is possible, some formats are planned for future releases.
 %setup -q
 %patch0 -p1 -b .empty-passphrase
 %patch1 -p1 -b .l10n-update
+%patch2 -p1 -b .man-device
+%patch3 -p1 -b .sslerrs
+%patch4 -p1 -b .passphrase-dialogs
+%patch5 -p1 -b .check-cert-first
 
 %build
 # For volume_key-0.3.1-l10n-update.patch: Make sure .gmo files are (re)generated
@@ -126,6 +140,20 @@ rm -rf $RPM_BUILD_ROOT
 %{python_sitearch}/volume_key.py*
 
 %changelog
+* Thu Jan 20 2011 Miloslav Trmač <mitr@redhat.com> - 0.3.1-5
+- Rebuild for fastrack
+  Related: #636541 #638732 #641111 #643897
+
+* Fri Jan 14 2011 Miloslav Trmač <mitr@redhat.com> - 0.3.1-4
+- Clarify documentation about which block device to use as an argument
+  Resolves: #636541
+- Report readable error messages instead of random characters in some cases
+  Resolves: #638732
+- Make passphrase prompts interruptable, report incorrect passphrases
+  Resolves: #641111
+- Ask for passphrases only after checking for easily detectable problems
+  Resolves: #643897
+
 * Wed Apr 28 2010 Miloslav Trmač <mitr@redhat.com> - 0.3.1-3
 - Update translations
   Resolves: #585836

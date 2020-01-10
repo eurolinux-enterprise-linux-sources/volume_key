@@ -1,0 +1,79 @@
+Report certificate errors sooner.
+
+2010-10-18  Miloslav Trmač  <mitr@redhat.com>
+
+	* src/volume_key.c (pos_interact): Split from pos_init ().
+	(do_save, do_reencrypt): Call pos_init () as early as possible.  Use
+	pos_interact () at the original location.
+
+diff -urN volume_key/src/volume_key.c volume_key-0.3.1/src/volume_key.c
+--- volume_key/src/volume_key.c	2011-01-14 23:44:03.734017558 +0100
++++ volume_key-0.3.1/src/volume_key.c	2011-01-14 23:45:14.091945959 +0100
+@@ -593,7 +593,7 @@
+   char *passphrase;
+ };
+ 
+-/* Init POS.
++/* Init POS, without user interaction.
+    Return 0 if OK, -1 on error. */
+ static int
+ pos_init (struct packet_output_state *pos, GError **error)
+@@ -627,6 +627,22 @@
+     }
+   else
+     {
++      /* Will ask for passphrase in pos_interact */
++    }
++  return 0;
++}
++
++/* Interact with the user about POS.
++   Return 0 if OK, -1 on error. */
++static int
++pos_interact (struct packet_output_state *pos, GError **error)
++{
++  if (output_format_cleartext != 0 || output_certificate != NULL)
++    {
++      /* Nothing - pos_init () is enough. */
++    }
++  else
++    {
+       char *passphrase;
+       unsigned failed;
+ 
+@@ -753,6 +769,9 @@
+     error_exit (_("Usage: %s --save VOLUME [PACKET]"), g_get_prgname ());
+ 
+   error = NULL;
++  if (pos_init (&pos, &error) != 0)
++    error_exit ("%s", error->message);
++
+   v = libvk_volume_open (argv[1], &error);
+   if (v == NULL)
+     error_exit (_("Error opening `%s': %s"), argv[1], error->message);
+@@ -772,7 +791,7 @@
+   else if (libvk_volume_get_secret (v, LIBVK_SECRET_DEFAULT, ui, &error) != 0)
+     error_exit (_("Error opening `%s': %s"), argv[1], error->message);
+ 
+-  if (pos_init (&pos, &error) != 0
++  if (pos_interact (&pos, &error) != 0
+       || output_packet (&pos, v, ui, &error) != 0)
+     error_exit ("%s", error->message);
+   if (output_created_random_passphrase != NULL)
+@@ -967,12 +986,15 @@
+     error_exit (_("Usage: %s --%s PACKET"), g_get_prgname (), "reencrypt");
+ 
+   error = NULL;
++  if (pos_init (&pos, &error) != 0)
++    error_exit ("%s", error->message);
++
+   ui = create_ui ();
+   pack = open_packet_file (argv[1], ui, &error);
+   if (pack == NULL)
+     error_exit ("%s", error->message);
+ 
+-  if (pos_init (&pos, &error) != 0
++  if (pos_interact (&pos, &error) != 0
+       || output_packet (&pos, pack, ui, &error) != 0)
+     error_exit ("%s", error->message);
+   pos_free (&pos);
