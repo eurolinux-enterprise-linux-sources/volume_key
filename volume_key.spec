@@ -3,7 +3,7 @@
 Summary: An utility for manipulating storage encryption keys and passphrases
 Name: volume_key
 Version: 0.3.9
-Release: 7%{?dist}
+Release: 3%{?dist}
 License: GPLv2
 Group: Applications/System
 URL: https://fedorahosted.org/volume_key/
@@ -12,7 +12,6 @@ Requires: volume_key-libs%{?_isa} = %{version}-%{release}
 Source0: https://fedorahosted.org/releases/v/o/volume_key/volume_key-%{version}.tar.xz
 # Upstream commit 04991fe8c4f77c4e5c7874c2db8ca32fb4655f6e
 Patch1: volume_key-0.3.9-fips-crash.patch
-Patch2: volume_key-0.3.9-translation-updates.patch
 BuildRequires: cryptsetup-luks-devel, gettext-devel, glib2-devel, /usr/bin/gpg
 BuildRequires: gpgme-devel, libblkid-devel, nss-devel, python-devel
 
@@ -79,12 +78,6 @@ for other formats is possible, some formats are planned for future releases.
 %setup -q
 
 %patch1 -p1 -b .fips-crash
-%patch2 -p2 -b .translation-updates
-# The patch touches both .pot and .po files, make sure the .pot file is older
-# to avoid po/Makefile running (msgmerge --update); otherwise the set of
-# (msgemrge --update)'d files changes from build to build, depending on precise
-# timing, and causes multilib differences.
-touch -d '-1 minute' po/volume_key.pot
 
 %build
 %configure
@@ -125,20 +118,6 @@ rm -rf $RPM_BUILD_ROOT
 %{python_sitearch}/volume_key.py*
 
 %changelog
-* Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 0.3.9-7
-- Mass rebuild 2014-01-24
-
-* Fri Dec 27 2013 Daniel Mach <dmach@redhat.com> - 0.3.9-6
-- Mass rebuild 2013-12-27
-
-* Mon Dec  2 2013 Miloslav Trmač <mitr@redhat.com> - 0.3.9-5
-- Avoid multilib confilicts introduced by applying the previous patch
-  Related: #1030387
-
-* Fri Nov 29 2013 Miloslav Trmač <mitr@redhat.com> - 0.3.9-4
-- Include updated translations
-  Resolves: #1030387
-
 * Fri Feb 15 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.3.9-3
 - Rebuilt for https://fedoraproject.org/wiki/Fedora_19_Mass_Rebuild
 
