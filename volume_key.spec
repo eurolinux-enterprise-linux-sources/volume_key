@@ -3,16 +3,23 @@
 Summary: An utility for manipulating storage encryption keys and passphrases
 Name: volume_key
 Version: 0.3.9
-Release: 7%{?dist}
-License: GPLv2
+Release: 9%{?dist}
+# License fix: lib/{SECerrs,SSLerrs}.h are both licensed under MPLv1.1, GPLv2 and LGPLv2
+License: GPLv2 and (MPLv1.1 or GPLv2 or LGPLv2)
 Group: Applications/System
-URL: https://fedorahosted.org/volume_key/
+URL: https://pagure.io/%{name}/
 Requires: volume_key-libs%{?_isa} = %{version}-%{release}
 
-Source0: https://fedorahosted.org/releases/v/o/volume_key/volume_key-%{version}.tar.xz
+Source0: https://releases.pagure.org/%{name}/%{name}-%{version}.tar.xz
 # Upstream commit 04991fe8c4f77c4e5c7874c2db8ca32fb4655f6e
 Patch1: volume_key-0.3.9-fips-crash.patch
 Patch2: volume_key-0.3.9-translation-updates.patch
+# Upstream commit 8f8698aba19b501f01285e9eec5c18231fc6bcea
+Patch3: volume_key-0.3.9-config.h.patch
+# Upstream commit ecef526a51c5a276681472fd6df239570c9ce518
+Patch4: volume_key-0.3.9-dont-use-crypt_get_error.patch
+# Upstream commit 23a1ff087a11ceefdfd709b151bfd4f3b75b0dc8
+Patch5: volume_key-0.3.9-fix-confusing-error-message-on-missing-private-key.patch
 BuildRequires: cryptsetup-luks-devel, gettext-devel, glib2-devel, /usr/bin/gpg
 BuildRequires: gpgme-devel, libblkid-devel, nss-devel, python-devel
 
@@ -80,6 +87,9 @@ for other formats is possible, some formats are planned for future releases.
 
 %patch1 -p1 -b .fips-crash
 %patch2 -p2 -b .translation-updates
+%patch3 -p1 -b .config.h
+%patch4 -p1 -b .no-crypt_get_error
+%patch5 -p1 -b .error-message
 # The patch touches both .pot and .po files, make sure the .pot file is older
 # to avoid po/Makefile running (msgmerge --update); otherwise the set of
 # (msgemrge --update)'d files changes from build to build, depending on precise
@@ -125,6 +135,16 @@ rm -rf $RPM_BUILD_ROOT
 %{python_sitearch}/volume_key.py*
 
 %changelog
+* Tue Mar 19 2019 Jiri Kucera <jkucera@redhat.com> - 0.3.9-9
+- Backport ecef526 (Stop using crypt_get_error)
+  Backport 23a1ff0 (Fix nonsensical error messages on missing keys)
+  Fix License, URL and Source0 tags
+  Resolves: #1502399, #1574988, #1593855, #1454358
+
+* Mon Oct 09 2017 skisela@redhat.com - 0.3.9-8
+- Don't #include <config.h> in libvolume_key.h
+  Resolves: #1498783
+
 * Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 0.3.9-7
 - Mass rebuild 2014-01-24
 

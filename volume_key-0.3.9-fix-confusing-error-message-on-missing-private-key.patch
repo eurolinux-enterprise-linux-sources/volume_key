@@ -1,0 +1,28 @@
+From 23a1ff087a11ceefdfd709b151bfd4f3b75b0dc8 Mon Sep 17 00:00:00 2001
+From: Miloslav Trmač <mitr@redhat.com>
+Date: Aug 24 2017 14:18:38 +0000
+Subject: Fix nonsensical error messages on missing key with secrets-only asymmetric packets
+
+
+CERT_FindCertByIssuerAndSN is not documented to set the NSPR error value;
+it does so in some paths, but not all of them.  So, hard-code the error
+string instead.
+
+---
+
+diff --git a/lib/crypto.c b/lib/crypto.c
+index 905d583..6831682 100644
+--- a/lib/crypto.c
++++ b/lib/crypto.c
+@@ -390,7 +390,9 @@ unwrap_asymmetric (size_t *clear_secret_size, const void *wrapped_secret_data,
+   cert = CERT_FindCertByIssuerAndSN (CERT_GetDefaultCertDB (), &isn);
+   if (cert == NULL)
+     {
+-      error_from_pr (error);
++      g_set_error (error, LIBVK_ERROR, LIBVK_ERROR_CRYPTO,
++		   _("Unable to find the certificate necessary for "
++		     "decryption"));
+       goto err;
+     }
+ 
+
